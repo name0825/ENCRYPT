@@ -9,19 +9,27 @@
     namespace ENCRYPT;
 
     class RSA {
-        private $publicKey;
-        private $privateKey;
+        private $n;
+        private $pb_key;
+        private $pv_key;
 
-        public function key_generator($max = 4096, $max_try = INF, $n_min = 0) {
+        private $max;
+        private $max_strength = [256, 512, 768, 1024, 1536, 2048, 4096];
+
+        public function __construct(int $strength = 1) {
+            if ($strength < 0 || $strength > count($this -> max_strength)) $strength = 1;
+            $this -> max = $this -> max_strength[$strength];
+        }
+
+        public function key_generator(int $n_min = 128, int $n_max = 300000, int $max = 0) {
+            if ($max == 0) $max = $this -> max;
+
             $n = 0;
             $p = 0;
             $q = 0;
-            $prime = self::getPrimeList($max);
+            $prime = self::get_prime_number($max);
 
-            $try = 0;
-            while ($n <= $n_min) {
-                $try++;
-                if ($try > $max_try) return FALSE;
+            while ($n <= $n_min || $n >= $n_max) {
                 $p = $prime[array_rand($prime)];
                 $q = $prime[array_rand($prime)];
                 if ($p == $q || ($p - 1) * ($q - 1) == 2) continue;
@@ -31,10 +39,7 @@
             $e = 0;
             $pi = ($p - 1) * ($q - 1);
 
-            $try = 0;
             while (!$e){
-                $try++;
-                if ($try > $max_try) return FALSE;
                 $randVal = rand(0, $pi * 2) % $pi;
                 if (1 < $randVal && $randVal < $pi) {
                     $e = $randVal;
@@ -47,73 +52,93 @@
             }
 
             $d = 0;
-            $try = 0;
 
             while (!$d) {
-                $try++;
-                if ($try > $max_try) return FALSE;
                 $rand = rand(0, $pi * 2) % $pi + 1;
                 if (($e * $rand) % $pi == 1) $d = $rand;
             }
 
-            $this -> publicKey = array($e, $n);
-            $this -> privateKey = array($d, $n);
+            $this -> pb_key = $e;
+            $this -> pv_key = $d;
+            $this -> n = $n;
             return TRUE;
         }
 
-        public function setKey(int $n, int $pb, int $pv) {
-            $this -> publicKey = array($pb, $n);
-            $this -> privateKey = array($pv, $n);
+        public function get_pb_key() {
+            return $this -> pb_key;
         }
 
-        public function getPublicKey() {
-            return $this -> publicKey;
+        public function get_pv_key() {
+            return $this -> pv_key;
         }
 
-        public function getPrivateKey() {
-            return $this -> privateKey;
+        public function get_n() {
+            return $this -> n;
+        }
+
+        public function set_pb_key($key) {
+            $this -> pb_key = $key;
+        }
+
+        public function set_pv_key($key) {
+            $this -> pv_key = $key;
+        }
+
+        public function set_n($n) {
+            $this -> n = $n;
         }
 
         public function encrypt(string $str) {
+            if ($this -> pb_key == null) return FALSE;
+
             $buffer = Array();
-            foreach (str_split($str) as $char) {
+            $len = strlen($str);
+
+            for ($i = 0; $i < $len; $i++) {
                 $sum = 1;
-                $ascii = ord($char);
-                for ($i = 0; $i < $this -> publicKey[0]; $i++) {
-                    $sum *= $ascii;
-                    $sum %= $this -> publicKey[1];
+                $v = ord($str[$i]);
+                for ($j = 0; $j < $this -> pb_key; $j++) {
+                    $sum *= $v;
+                    $sum %= $this -> n;
                 }
                 $buffer[] = $sum;
             }
+
             return $buffer;
         }
 
         public function decrypt(array $buffer) {
-            $str = '';
-            foreach ($buffer as $num) {
+            if ($this -> pv_key == null) return FALSE;
+
+            $str = "";
+            $len = count($buffer);
+
+            for ($i = 0; $i < $len; $i++) {
                 $sum = 1;
-                for ($i = 0; $i < $this -> privateKey[0]; $i++) {
-                    $sum *= $num;
-                    $sum %= $this -> privateKey[1];
+                $v = $buffer[$i];
+                for ($j = 0; $j < $this -> pv_key; $j++) {
+                    $sum *= $v;
+                    $sum %= $this -> n;
                 }
                 $str .= chr($sum);
             }
+
             return $str;
         }
 
-        private static function getPrimeList($max) {
-            $check = array(1, 1);
-            $prime_numbers = array();
+        private static function get_prime_number($max) {
+            $res = Array();
+            $arr = Array(0);
 
-            for ($i = 2; $i <= $max; $i++) $check[$i] = 0;
+            for ($i = 0; $i <= $max; $i++) $arr[$i] = 0;
 
             for ($i = 2; $i <= $max; $i++) {
-                if ($check[$i] == 1) continue;
-                for ($j = $i * 2; $j <= $max; $j += $i) $check[$j] = 1;
-                $prime_numbers[] = $i;
+                if ($arr[$i]) continue;
+                for ($j = $i * 2; $j <= $max; $j += $i) $arr[$j] = 1;
+                $res[] = $i;
             }
 
-            return $prime_numbers;
+            return $res;
         }
     }
 ?>
